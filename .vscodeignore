@@ -1,0 +1,24 @@
+# vsce packaging rules: vendor ships in the vsix but is git-ignored.
+.vscodeignore
+.vscode/**
+.claude/**
+.gitignore
+PLAN.md
+TODO.md
+TODO-archive.md
+MEMO.md
+CHANGELOG.md
+VERSION
+README_cn.md
+AGENTS.md
+tmp/**
+node_modules/**
+src/**
+assets/logo.svg
+webview/**
+scripts/sync-runtime.ts
+test/**
+bun.lock
+zcode-runtime.lock.json.bak
+**/*.map
+**/.DS_Store

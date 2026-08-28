@@ -1,0 +1,16 @@
+node_modules/
+out/
+dist/
+vendor/
+*.vsix
+*.tgz
+.DS_Store
+tmp/
+.env
+.env.*
+!.env.example
+docs/runtime/
+__pycache__/
+
+# Claude Code 个人本地配置（机器本地，不提交）
+.claude/settings.local.json

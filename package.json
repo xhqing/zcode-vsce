@@ -1,0 +1,149 @@
+{
+  "name": "zcode-vsce",
+  "displayName": "ZCode",
+  "description": "Unofficial VSCode extension client for the ZCode agent runtime (Claude-Code-style chat UI over the official app-server protocol)",
+  "version": "0.1.4",
+  "publisher": "xhqing",
+  "license": "MIT",
+  "author": "All Contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xhqing/zcode-vsce.git"
+  },
+  "type": "module",
+  "engines": {
+    "vscode": "^1.93.0",
+    "node": ">=22.19.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "chat",
+    "glm",
+    "zcode",
+    "z-ai"
+  ],
+  "activationEvents": [],
+  "main": "out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "zcode-sidebar",
+          "title": "ZCode",
+          "icon": "assets/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "zcode-sidebar": [
+        {
+          "type": "tree",
+          "id": "zcode.sessions",
+          "name": "Sessions"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "zcode.openChat",
+        "title": "Open Chat",
+        "category": "ZCode"
+      },
+      {
+        "command": "zcode.newSession",
+        "title": "New Session",
+        "icon": "$(add)",
+        "category": "ZCode"
+      },
+      {
+        "command": "zcode.stop",
+        "title": "Stop Current Turn",
+        "icon": "$(debug-stop)",
+        "category": "ZCode"
+      },
+      {
+        "command": "zcode.setModel",
+        "title": "Switch Model",
+        "category": "ZCode"
+      },
+      {
+        "command": "zcode.setMode",
+        "title": "Switch Permission Mode",
+        "category": "ZCode"
+      },
+      {
+        "command": "zcode.setThoughtLevel",
+        "title": "Switch Thinking Level",
+        "category": "ZCode"
+      },
+      {
+        "command": "zcode.resumeSession",
+        "title": "Resume Session",
+        "category": "ZCode"
+      },
+      {
+        "command": "zcode.forkSession",
+        "title": "Fork Session",
+        "category": "ZCode"
+      },
+      {
+        "command": "zcode.compact",
+        "title": "Compact Context",
+        "category": "ZCode"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "zcode.newSession",
+          "group": "navigation",
+          "when": "view == zcode.sessions"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "zcode.forkSession",
+          "when": "view == zcode.sessions && viewItem == zcode-session"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ZCode",
+      "properties": {
+        "zcode.nodeExecutable": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to a Node.js (>= 22.19) executable used to run the ZCode runtime. Leave empty to use `node` from PATH or the `ZCODE_NODE` environment variable."
+        },
+        "zcode.idleShutdownMs": {
+          "type": "number",
+          "default": 300000,
+          "markdownDescription": "Milliseconds of inactivity before the runtime process is shut down when no chat view is visible (0 = never)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "package": "vsce package --allow-missing-repository",
+    "sync:runtime": "bun scripts/sync-runtime.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.93.0",
+    "@vscode/vsce": "^3.1.0",
+    "esbuild": "^0.24.0",
+    "marked": "^15.0.0",
+    "typescript": "^5.7.0"
+  },
+  "icon": "assets/logo.png"
+}
