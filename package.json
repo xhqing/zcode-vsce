@@ -43,9 +43,9 @@
     "views": {
       "zcode-sidebar": [
         {
-          "type": "tree",
+          "type": "webview",
           "id": "zcode.sessions",
-          "name": "Sessions"
+          "name": "ZCode"
         }
       ]
     },
@@ -98,21 +98,7 @@
         "category": "ZCode"
       }
     ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "zcode.newSession",
-          "group": "navigation",
-          "when": "view == zcode.sessions"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "zcode.forkSession",
-          "when": "view == zcode.sessions && viewItem == zcode-session"
-        }
-      ]
-    },
+    "menus": {},
     "configuration": {
       "title": "ZCode",
       "properties": {

@@ -26,6 +26,7 @@ export type PanelMessage =
   | { t: "permission"; request: PermissionRequest }
   | { t: "userInput"; request: UserInputRequest }
   | { t: "runtimeExit"; message: string }
+  | { t: "insert"; text: string }
   | { t: "notice"; level: "info" | "error"; message: string };
 
 export class ZcodeController implements vscode.Disposable {

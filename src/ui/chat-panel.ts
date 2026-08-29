@@ -107,6 +107,23 @@ export class ChatTab {
           }
           break;
         }
+        case "attach": {
+          // Minimal "+" behavior: pick a workspace file and insert an @path
+          // reference into the composer (real multimodal attachments land later).
+          const files = await vscode.workspace.findFiles("**/*", "**/node_modules/**", 300);
+          const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+          const picked = await vscode.window.showQuickPick(
+            files
+              .map((file) => ({
+                label: root && file.fsPath.startsWith(root) ? file.fsPath.slice(root.length + 1) : file.fsPath
+              }))
+              .sort((a, b) => a.label.localeCompare(b.label))
+              .slice(0, 300),
+            { placeHolder: "Reference a file (inserts @path)" }
+          );
+          if (picked) this.post({ t: "insert", text: `@${picked.label}` });
+          break;
+        }
         case "send":
           if (manager && sessionId) {
             await manager.send(sessionId, String(message.text ?? ""), message.attachments as never);

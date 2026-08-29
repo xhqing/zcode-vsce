@@ -7,19 +7,21 @@
 import * as vscode from "vscode";
 import { ZcodeController } from "./controller.ts";
 import { ChatTab } from "./ui/chat-panel.ts";
-import { SessionsTree } from "./ui/sessions-tree.ts";
+import { SidebarView } from "./ui/sidebar-view.ts";
 import { StatusBar } from "./ui/statusbar.ts";
 
 export function activate(context: vscode.ExtensionContext): void {
   const controller = new ZcodeController(context);
   const chat = new ChatTab(context, controller);
-  const tree = new SessionsTree(controller);
+  const sidebar = new SidebarView(context, controller);
   const statusbar = new StatusBar();
 
   context.subscriptions.push(
     controller,
     statusbar,
-    vscode.window.createTreeView(SessionsTree.viewId, { treeDataProvider: tree }),
+    vscode.window.registerWebviewViewProvider(SidebarView.viewId, sidebar, {
+      webviewOptions: { retainContextWhenHidden: true }
+    }),
     vscode.commands.registerCommand("zcode.openChat", async () => {
       await chat.open(controller.activeSession);
     }),
@@ -27,7 +29,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const id = await controller.newSession();
       if (id) {
         await chat.open(id);
-        tree.refresh();
+        await sidebar.refresh();
       }
     }),
     vscode.commands.registerCommand("zcode.stop", async () => {
@@ -94,7 +96,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (typeof sessionId !== "string") return;
       await controller.resume(sessionId);
       await chat.open(sessionId);
-      tree.refresh();
+      await sidebar.refresh();
     }),
     vscode.commands.registerCommand("zcode.forkSession", async (item?: { id?: string }) => {
       const manager = controller.sessionManager;
@@ -106,7 +108,7 @@ export function activate(context: vscode.ExtensionContext): void {
         await controller.resume(forkedId);
         await chat.open(forkedId);
       }
-      tree.refresh();
+      await sidebar.refresh();
     }),
     vscode.commands.registerCommand("zcode.compact", async () => {
       const manager = controller.sessionManager;
@@ -115,14 +117,24 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     controller.onStatus(() => {
       statusbar.update(controller.sessionManager, controller.activeSession);
-      tree.refresh();
+      void sidebar.refresh();
     })
   );
 
-  // Keep the status bar in sync as events stream in.
+  // Keep the status bar and sidebar in sync as events stream in.
   controller.onPanelMessage((message) => {
     if (message.t === "event" && message.sessionId === controller.activeSession) {
       statusbar.update(controller.sessionManager, controller.activeSession);
+      if (message.event && typeof message.event === "object") {
+        const kind = (message.event as { kind?: string }).kind;
+        if (kind === "turn_started") sidebar.setRunning(message.sessionId, true);
+        if (kind === "turn_complete" || kind === "turn_error") {
+          sidebar.setRunning(message.sessionId, false);
+        }
+        if (kind === "turn_started" || kind === "turn_complete" || kind === "turn_error") {
+          void sidebar.refresh();
+        }
+      }
     }
   });
 }

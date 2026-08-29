@@ -67,6 +67,9 @@ window.addEventListener("message", (event) => {
     case "notice":
       store.addNotice(String(message.message ?? ""), message.level === "error" ? "error" : "info");
       break;
+    case "insert":
+      if (typeof message.text === "string") insertAtCursor(message.text);
+      break;
     default:
       break;
   }
@@ -112,30 +115,41 @@ function headerSignature(state: Store["state"]): string {
 }
 
 function view(state: Store["state"]): string {
+  const empty = state.transcript.length === 0;
   return `
-    <div class="header">
-      <span class="model">${escapeHtml(state.model ?? "ZCode")}</span>
-      <span class="mode badge">${escapeHtml(state.mode ?? "")}</span>
-      ${state.running ? '<span class="running badge">running</span>' : ""}
-      <span class="spacer"></span>
-      <button class="icon" data-action="new" title="New session">+</button>
-      <button class="icon" data-action="stop" title="Stop">${state.running ? "■" : "■"}</button>
-      <button class="icon" data-action="model" title="Model">⌘</button>
-    </div>
-    <div class="transcript" id="transcript">${renderTranscript(state.transcript)}</div>
+    ${empty ? welcomeView() : ""}
+    <div class="transcript ${empty ? "empty-state" : ""}" id="transcript">${empty ? "" : renderTranscript(state.transcript)}</div>
     ${renderPermission(state)}
     ${renderUserInput(state)}
     <div class="composer">
-      <textarea id="composer-input" placeholder="Ask ZCode…  (@ files, / commands)" rows="2"></textarea>
-      <button id="composer-send" title="Send">Send</button>
+      <textarea id="composer-input" placeholder="Ask ZCode anything... (⏎ to send, / for commands)" rows="1"></textarea>
+      <div class="composer-bar">
+        <div class="composer-left">
+          <button class="bar-btn" data-action="attach" title="Attach file">+</button>
+          <button class="bar-btn" data-action="commands" title="Slash commands">/</button>
+        </div>
+        <div class="composer-right">
+          <button id="composer-send" class="send ${state.running ? "stop" : ""}" data-action="send"
+                  title="${state.running ? "Stop" : "Send"}">${state.running ? "■" : "↑"}</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function welcomeView(): string {
+  return `
+    <div class="welcome">
+      <div class="welcome-brand">ZCode</div>
+      <div class="welcome-hero">
+        <div class="mascot" aria-hidden="true">Z</div>
+        <p class="welcome-line">Create an AGENTS.md file with instructions ZCode reads every single time.</p>
+      </div>
     </div>
   `;
 }
 
 function renderTranscript(transcript: Store["state"]["transcript"]): string {
-  if (transcript.length === 0) {
-    return `<div class="empty">Start a conversation with ZCode.</div>`;
-  }
   return transcript.map((entry, entryIndex) => {
     const blocks = entry.blocks.map((block, blockIndex) => renderBlock(block, entryIndex, blockIndex)).join("");
     return `<div class="entry ${entry.role}">${blocks}</div>`;
@@ -218,9 +232,12 @@ function bindEvents(): void {
   document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
     button.addEventListener("click", () => {
       const action = button.dataset.action;
-      if (action === "new") vscode?.postMessage({ t: "newSession" });
-      if (action === "stop") vscode?.postMessage({ t: "stop" });
-      if (action === "model") vscode?.postMessage({ t: "setModel" });
+      if (action === "attach") insertAtCursor("/");
+      if (action === "commands") insertAtCursor("/");
+      if (action === "send") {
+        if (store.state.running) vscode?.postMessage({ t: "stop" });
+        else submitComposer();
+      }
     });
   });
   document.querySelectorAll<HTMLButtonElement>("[data-permission]").forEach((button) => {
@@ -250,6 +267,7 @@ function bindEvents(): void {
   const send = document.getElementById("composer-send");
   const input = document.getElementById("composer-input") as HTMLTextAreaElement | null;
   send?.addEventListener("click", submitComposer);
+  input?.addEventListener("input", () => autoGrow(input));
   input?.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
@@ -264,7 +282,28 @@ function submitComposer(): void {
   if (!text) return;
   store.addUserMessage(text);
   vscode?.postMessage({ t: "send", text });
-  if (input) input.value = "";
+  if (input) {
+    input.value = "";
+    autoGrow(input);
+  }
+}
+
+/** Insert text at the composer cursor and refocus it (slash-command helper). */
+function insertAtCursor(text: string): void {
+  const input = document.getElementById("composer-input") as HTMLTextAreaElement | null;
+  if (!input) return;
+  input.focus();
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? start;
+  input.value = `${input.value.slice(0, start)}${text}${input.value.slice(end)}`;
+  const caret = start + text.length;
+  input.setSelectionRange(caret, caret);
+}
+
+/** Grow the composer with its content, up to a comfortable cap. */
+function autoGrow(input: HTMLTextAreaElement): void {
+  input.style.height = "auto";
+  input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
 }
 
 function updateStreamingBlocks(state: Store["state"]): void {

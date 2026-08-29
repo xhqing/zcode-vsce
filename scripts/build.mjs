@@ -33,8 +33,11 @@ const extension = {
 
 const webview = {
   ...common,
-  entryPoints: [join(root, "webview", "main.ts")],
-  outfile: join(root, "out", "webview", "main.js"),
+  entryPoints: [
+    join(root, "webview", "main.ts"),
+    join(root, "webview", "sidebar.ts")
+  ],
+  outdir: join(root, "out", "webview"),
   platform: "browser",
   format: "iife",
   define: { "process.env.NODE_ENV": JSON.stringify(production ? "production" : "development") }
@@ -43,6 +46,7 @@ const webview = {
 async function copyAssets() {
   await mkdir(join(root, "out", "webview"), { recursive: true });
   await cp(join(root, "webview", "main.css"), join(root, "out", "webview", "main.css"));
+  await cp(join(root, "webview", "sidebar.css"), join(root, "out", "webview", "sidebar.css"));
 }
 
 if (watch) {

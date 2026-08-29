@@ -2,17 +2,21 @@
 
 本项目所有值得注意的变更都记录在此文件中。每条记录写清楚两件事：**为什么改**（触发原因 / 要解决的问题）和**改了什么**（具体变更内容）。
 
-## 0.1.0 - 2026-08-26
-
-### 新增
-
-- **项目立项：新建 zcode-vsce——ZCode 的非官方 VSCode 扩展客户端**。为什么立项：zcode-cli 已验证 ZCode runtime 原生自带 `app-server` stdio JSON-RPC 协议（ZCode Desktop 图形界面即基于此协议），可以在此基础上做一个 VSCode 扩展形态的客户端——后端继续复用 zcode-cli 提取的官方 runtime（后端功能不变），前端用 webview 重写为类 Claude Code VSCode 扩展的交互形态。为什么单独建仓库而不是塞进 zcode-cli：两个项目的发布产物（tgz vs vsix）、工程链路（TUI vs VSCode 扩展）完全不同，独立仓库避免互相拖累；zcode-vsce 与 zcode-cli 平行，同归 Atlas（FullStackEngineerAgent）负责。
-- **`PLAN.md` 项目根实施方案**：完整记录改造可行性结论（后端复用、前端等价的边界）、总体架构、与 zcode-cli 的复用与分工、分阶段实施路线（M0 链路验证 → M1 MVP → M2 对齐 CC 扩展交互 → M3 完整对齐）、风险与决策记录。为什么放项目根：这是项目的顶层设计文档，所有后续开发以此为准。
-- **项目标配文件**：`VERSION`（0.1.0）、`CHANGELOG.md`、`LICENSE.md`（MIT，All Contributors）、`.gitignore`（node_modules / out / dist / vendor / vsix / tgz / tmp / .env 系列 / settings.local.json 等）。
-- **`.claude/` 脚手架**：按 FullStackEngineerAgent（Atlas）超集规则配置——`settings.json` + `settings.local.json`（与权威源逐字节一致）、`CLAUDE.md`（项目指南 + Atlas CLAUDE.md 全文随附）。
-- **README 与品牌**：中英双语 `README.md` / `README_cn.md`（居中 logo + License / Version / Type 三枚标准徽章 + 团队 Visitors 徽章、与 zcode-cli 的关系对照表）；`assets/logo.svg` 沿用 ZCode 家族赛博朋克视觉（同款霓虹 Z + glitch 切片，副标题区分 VSCode Extension 定位）；`AGENTS.md` 软链接指向 `.claude/CLAUDE.md`（与 zcode-cli 同款，多 agent 工具入口共享单一源）。
-
 ## 0.1.4 - 2026-08-27
+
+### 变更
+
+- **聊天面板与侧边栏交互对齐 CC VSCode 扩展（用户对照 CC 截图逐项提出）**。为什么：用户要求把本项目前端做成与 CC 扩展一致的两块交互——①点 New session 后的会话页（欢迎页 + 底部 composer 输入框），②活动栏侧边栏（「+ New session」大按钮 + 会话搜索框 + 会话列表行内操作）。改了什么：
+  - **会话页欢迎视图**（`webview/main.ts` `welcomeView` + `main.css`）：空会话时不再显示一行灰字，改为顶部「Z ZCode」品牌字标、中部像素风吉祥物（内联 SVG，主题色）+ 引导语「Create an AGENTS.md file with instructions ZCode reads every single time.」（CC 的 CLAUDE.md 引导语做了等价改写——runtime 实际读取 AGENTS.md，从 `vendor/zcode.cjs` 字符串统计核实），底部即 composer，与 CC 布局一致；移除旧顶部 header 条（模型 / 模式信息改由 composer chip 与状态栏承载）。
+  - **CC 式 composer**：从「裸 textarea + Send 按钮」改为单圆角容器内嵌输入区 + 底部工具条——左侧 `+`（附件：现接 QuickPick 选工作区文件插入 `@path` 引用，真实多模态附件后续再补）与 `/`（斜杠命令：向输入框光标处插入 `/`）；右侧模型 chip（`Z` + 当前模型短名，点击唤起模型选择）、`⚡ 模式` chip（build/edit/yolo/plan 映射为 Ask/Edit/Full Access/Plan/Plan，点击唤起模式选择）、圆角发送按钮（turn 运行中变红色 ■ 停止按钮）；输入框自动随内容增高（上限 160px）。
+  - **侧边栏从原生 TreeView 换成 webview view**（`src/ui/sidebar-view.ts` + `webview/sidebar.ts` / `sidebar.css`，对齐 CC 侧栏样式）：顶部大号「+ New session」按钮、搜索框（前端实时过滤会话标题）、会话列表每行显示标题 + 相对时间（`13h` / `1d`）+ 悬停浮现「重命名 ✎ / 删除 🗑」行内操作 + turn 运行中的会话带蓝色「● Running」徽标。
+  - **协议边界结论（重命名 / 删除）**：runtime 的 stdio `app-server` 方法面（`rr={...}` 完整 map 已提取核实）**没有** rename / delete RPC——`renameSession` / `deleteSession` 只存在于 runtime 内部 v4 网关层（host capability），stdio 客户端不可达。按 PLAN.md「能用协议就用协议、缺口纯前端替代」原则：**重命名**为扩展侧显示名覆盖（workspaceState 持久化 `zcode.sessionNames`，不改 runtime 存储）；**删除**走协议内 `session/close` + 扩展侧 hidden 记录，确认弹窗如实说明「历史保留在磁盘（~/.zcode）但不再列出」。
+  - **Running 徽标数据源**：`turn_started` / `turn_complete` / `turn_error` 事件驱动 `SidebarView.setRunning` + 列表刷新（extension.ts 事件监听扩展）。
+  - 构建链同步：`scripts/build.mjs` webview 入口改双入口（main + sidebar），新增 sidebar.css 拷贝；`package.json` 侧栏视图类型 tree→webview、移除失效的 view/title 与 view/item/context 菜单（行内操作已进 webview）；删除无引用的 `src/ui/sessions-tree.ts`。
+
+### 修复
+
+- **CHANGELOG 版本条目排序错误（0.1.0 立项条目错置顶部）**。为什么：0.1.0 条目被排在文件最顶部，导致「最新一条版本标题」读出来是 0.1.0，与 VERSION（0.1.4）不一致，也会误导读者以为项目最新版是 0.1.0。改了什么：把 0.1.0 条目移到文件末尾（0.1.1 之后），全文件恢复时间倒序（0.1.4 → 0.1.3 → 0.1.2 → 0.1.1 → 0.1.0），顶部最新版本标题与 VERSION 对齐；条目内容一字未改。
 
 ### 变更
 
@@ -70,3 +74,13 @@
 
 - **活动栏 ZCode 入口不显示（打包缺陷）**。为什么：`.vscodeignore` 误把 `assets/sidebar-icon.svg` 排除出 vsix——活动栏图标（viewsContainers.icon）按 VSCode 规定**必须**是 SVG，文件缺失导致整个侧边栏容器不渲染、用户看不到 Chat 面板入口；最初排除它是沿袭「扩展主图标不能用 SVG」的规则，但那条限制只针对 `package.json` 的 `icon` 字段，不适用于 viewsContainers 图标。改了什么：`.vscodeignore` 移除该排除项，重新打包（243 文件）并重装，`assets/sidebar-icon.svg` 已随包分发，活动栏入口恢复。
 - **（开发期自纠，非用户可见）冒烟测试 fake vscode 模块的 `Disposable` 写错**：初版 fake 的 `Disposable` 构造函数立即执行清理回调，导致刚注册的 panel message listener 被立刻反注册、事件计数恒为 0，一度误导排查方向；修正后扩展三层（connection → manager → controller → listener）事件流全部打通（实测 11~13 条事件完整到达）。
+
+## 0.1.0 - 2026-08-26
+
+### 新增
+
+- **项目立项：新建 zcode-vsce——ZCode 的非官方 VSCode 扩展客户端**。为什么立项：zcode-cli 已验证 ZCode runtime 原生自带 `app-server` stdio JSON-RPC 协议（ZCode Desktop 图形界面即基于此协议），可以在此基础上做一个 VSCode 扩展形态的客户端——后端继续复用 zcode-cli 提取的官方 runtime（后端功能不变），前端用 webview 重写为类 Claude Code VSCode 扩展的交互形态。为什么单独建仓库而不是塞进 zcode-cli：两个项目的发布产物（tgz vs vsix）、工程链路（TUI vs VSCode 扩展）完全不同，独立仓库避免互相拖累；zcode-vsce 与 zcode-cli 平行，同归 Atlas（FullStackEngineerAgent）负责。
+- **`PLAN.md` 项目根实施方案**：完整记录改造可行性结论（后端复用、前端等价的边界）、总体架构、与 zcode-cli 的复用与分工、分阶段实施路线（M0 链路验证 → M1 MVP → M2 对齐 CC 扩展交互 → M3 完整对齐）、风险与决策记录。为什么放项目根：这是项目的顶层设计文档，所有后续开发以此为准。
+- **项目标配文件**：`VERSION`（0.1.0）、`CHANGELOG.md`、`LICENSE.md`（MIT，All Contributors）、`.gitignore`（node_modules / out / dist / vendor / vsix / tgz / tmp / .env 系列 / settings.local.json 等）。
+- **`.claude/` 脚手架**：按 FullStackEngineerAgent（Atlas）超集规则配置——`settings.json` + `settings.local.json`（与权威源逐字节一致）、`CLAUDE.md`（项目指南 + Atlas CLAUDE.md 全文随附）。
+- **README 与品牌**：中英双语 `README.md` / `README_cn.md`（居中 logo + License / Version / Type 三枚标准徽章 + 团队 Visitors 徽章、与 zcode-cli 的关系对照表）；`assets/logo.svg` 沿用 ZCode 家族赛博朋克视觉（同款霓虹 Z + glitch 切片，副标题区分 VSCode Extension 定位）；`AGENTS.md` 软链接指向 `.claude/CLAUDE.md`（与 zcode-cli 同款，多 agent 工具入口共享单一源）。
