@@ -4,8 +4,17 @@
 
 ## 0.1.4 - 2026-08-27
 
+### 新增
+
+- **Thinking 实时 token 计数 + 会话字号设置（侧栏设置面板）**。为什么：用户要求 ①会话输出的 Thinking 块标题后带 token 实时计数、超 999 用千位分隔（如 `1,000`）；②输出内容与输入框文字字号可调；③左侧栏 New session 按钮上方右侧加小设置图标，点开可做一系列设置（字号放这里）。改了什么：
+  - **Thinking token 计数**（新文件 [webview/tokens.ts](webview/tokens.ts) + `webview/main.ts`）：reasoning 块 summary 显示 `Thinking · N`，流式增量更新时同步刷新计数，数字用等宽字形（`tabular-nums`）防抖动。计数为**客户端估算**——协议在流式阶段不提供逐 delta 的 token 计数（仅 `turn_complete` 带总 `tokenCount`，见 docs/PROTOCOL.md），估算口径：CJK 字符每字 1 token、其余文本每 4 字符 1 token；tooltip 标注 "Estimated token count"。千位分隔用 `toLocaleString("en-US")`（999 → `999`、1000 → `1,000`）。计数刷新走 0.1.4 已修复的按稳定块 id 增量更新路径（在其上追加 summary 内 span 刷新，不动原 innerHTML 更新逻辑，无回归）。
+  - **字号设置链路**（`src/controller.ts` / `src/ui/chat-panel.ts` / `src/ui/sidebar-view.ts` / `webview/main.ts` / `main.css`）：新增 `UiSettings`（`globalState` 键 `zcode.uiSettings` 持久化、跨窗口共享），`controller.setFontSize` 做 10–24px clamp 后经新增 `uiSettings` PanelMessage 广播到所有已打开聊天 tab（复用 ChatTab 广播路由）；各 webview `ready` 时宿主回发当前值（webview 脚本加载完成前的 postMessage 不保证送达，故不走 spawn 后直发）。前端以 CSS 变量 `--zcode-font-size`（默认 13px）作用于 `.transcript`（输出内容）与 `#composer-input`（输入框），Thinking 块 / 工具卡 / 行内代码按 `-1px` 相对缩放保持层级对比。
+  - **侧栏设置面板**（`webview/sidebar.ts` + `sidebar.css`）：New session 按钮上方右侧新增小齿轮图标（内联 SVG、currentColor 随主题），点击展开 Settings 卡片——设计为可扩展设置容器，首项「Font size (chat & input)」−/+ 步进器（1px 步进、范围 10–24px、到边界自动禁用按钮），调整即时生效于所有聊天 tab 并持久化。
+  - **单测**（新文件 `test/tokens.test.ts`）：token 估算（拉丁 / CJK / 混排 / 空串）与千位分隔（999 / 1,000 / 12,345 / 1,234,567）8 个用例。
+
 ### 变更
 
+- **侧栏设置按钮移到视图标题栏（原生 view/title 齿轮）**。为什么：用户对照截图指出——设置按钮原来放在 webview 内部「New session」按钮上方（自绘 SVG，视觉上像太阳图标，位置也偏），要求移到「ZCODE」视图标题行右端（原生标题栏区域），并明确用齿轮图标。改了什么：① `package.json` 新增 `zcode.openSettings` 命令（codicon `$(gear)` 原生齿轮）并经 `view/title` 菜单贡献挂在 `zcode.sessions` 视图标题栏 navigation 组——按钮随 VSCode 原生标题栏渲染，位置、悬停、主题跟随系统；② `src/extension.ts` 注册该命令 → `SidebarView.toggleSettings()` → webview `toggleSettings` 消息翻转设置卡片展开状态；③ `webview/sidebar.ts` 移除 webview 内自绘齿轮按钮与 `gearSvg`（点击外区域关闭设置卡片的逻辑保留、改为 webview 本地处理）；④ `webview/sidebar.css` 删除不再使用的 `.sidebar-top` / `.icon-btn` 样式。设置面板本体（字号步进器）不变，仅入口位置与图标更换。
 - **聊天面板与侧边栏交互对齐 CC VSCode 扩展（用户对照 CC 截图逐项提出）**。为什么：用户要求把本项目前端做成与 CC 扩展一致的两块交互——①点 New session 后的会话页（欢迎页 + 底部 composer 输入框），②活动栏侧边栏（「+ New session」大按钮 + 会话搜索框 + 会话列表行内操作）。改了什么：
   - **会话页欢迎视图**（`webview/main.ts` `welcomeView` + `main.css`）：空会话时不再显示一行灰字，改为顶部「Z ZCode」品牌字标、中部像素风吉祥物（内联 SVG，主题色）+ 引导语「Create an AGENTS.md file with instructions ZCode reads every single time.」（CC 的 CLAUDE.md 引导语做了等价改写——runtime 实际读取 AGENTS.md，从 `vendor/zcode.cjs` 字符串统计核实），底部即 composer，与 CC 布局一致；移除旧顶部 header 条（模型 / 模式信息改由 composer chip 与状态栏承载）。
   - **CC 式 composer**：从「裸 textarea + Send 按钮」改为单圆角容器内嵌输入区 + 底部工具条——左侧 `+`（附件：现接 QuickPick 选工作区文件插入 `@path` 引用，真实多模态附件后续再补）与 `/`（斜杠命令：向输入框光标处插入 `/`）；右侧模型 chip（`Z` + 当前模型短名，点击唤起模型选择）、`⚡ 模式` chip（build/edit/yolo/plan 映射为 Ask/Edit/Full Access/Plan/Plan，点击唤起模式选择）、圆角发送按钮（turn 运行中变红色 ■ 停止按钮）；输入框自动随内容增高（上限 160px）。
@@ -25,6 +34,10 @@
 ### 修复
 
 - **流式输出停在第一个词（Thinking 只显示「The」，正文不出现）**。为什么：0.1.3 只修了快照覆盖的一半，渲染循环本身还有致命缺陷——① 渲染签名只含 transcript **条目数**（不含每条的块数），text 块首次出现在同一条目内时签名不变，不触发全量渲染；② 增量更新函数 `updateStreamingText` 的选择器 `.block.text:last-of-type` **永远命中不了 reasoning 块**（其 class 是 `block reasoning`），且块没有稳定 id，只能靠脆弱的 CSS 选择器定位。两者叠加：每个块只有触发全量渲染的那一个 delta 能上屏，其余全部丢失。改了什么：重写 webview 渲染循环——① 签名加入每条目的块数列表（块增删必触发结构重建）；② 每个块渲染时带稳定 id（`b<entryIdx>-<blockIdx>`），增量更新改为按 id `getElementById` 定位、直接重写 innerHTML，**覆盖 text / reasoning / tool 卡片三类**（工具卡片的状态图标、标题、输出也增量刷新），不再依赖 CSS 选择器。已用单测证明旧选择器对 reasoning 块恒为 null（根因实证），端到端模拟（真实事件流喂入 store）验证完整 transcript 生成。
+
+### 修复
+
+- **点击 New session 不再新开窗口（已有窗口时被复用）**。为什么：`ChatTab` 是单 panel 设计——只持有一个 `WebviewPanel`，`open()` 发现已有窗口时仅 `reveal()` 并把旧窗口重绑到新 session，导致「不管开几个窗口、点 New session 永远只有一个窗口」，与 CC 扩展「每次 New session 新开一个 tab」的行为不符。改了什么：重构 `src/ui/chat-panel.ts` 为多 panel 架构——① 内部改为 `Set<ChatEntry>`（每个 tab 绑定自己的 sessionId），新增 `openNew()`（无条件创建新窗口）与重定义的 `open()`（优先聚焦绑定该 session 的已有 tab，没有才新开）；② controller 广播消息按 session 路由：`event` 与 `permission`（协议带 sessionId）精确投递到绑定该 session 的 tab（permission 找不到绑定 tab 时广播兜底防悬置），`userInput`（协议不带 sessionId）/ `runtimeExit` / `notice` 广播所有 tab；③ webview 回程消息按来源 tab 处理（`ready` 时无 session 则就地建 session 绑定该 tab，`newSession` 一律新开 tab，`insert` 回投来源 tab）；④ tab 获得焦点时同步 `controller.setActiveSession`，多窗口下状态栏与命令面板（setModel 等）作用于当前聚焦 tab 的 session；⑤ 最后一个 tab 关闭后才启动 idle 关停倒计时（原来关窗口不触发）。`src/extension.ts` 的 `zcode.newSession` 命令改用 `openNew()`；`openChat` / `resumeSession` / `forkSession` 保持 `open()`（聚焦已有 tab 或新开）。
 
 ## 0.1.3 - 2026-08-27
 

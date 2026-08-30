@@ -7,6 +7,7 @@
 
 import { Store } from "./store.ts";
 import { renderMarkdown } from "./markdown.ts";
+import { estimateTokens, formatTokenCount } from "./tokens.ts";
 
 const vscode = (globalThis as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi?.() as VscodeApi;
 
@@ -70,6 +71,11 @@ window.addEventListener("message", (event) => {
     case "insert":
       if (typeof message.text === "string") insertAtCursor(message.text);
       break;
+    case "uiSettings": {
+      const fontSize = Number(message.fontSize);
+      if (Number.isFinite(fontSize) && fontSize > 0) applyFontSize(fontSize);
+      break;
+    }
     default:
       break;
   }
@@ -167,7 +173,7 @@ function renderBlock(block: unknown, entryIndex = 0, blockIndex = 0): string {
     case "text":
       return `<div id="${id}" class="block text" data-streaming="true">${renderMarkdown(String(value.text ?? ""))}</div>`;
     case "reasoning":
-      return `<details id="${id}" class="block reasoning"><summary>Thinking</summary><div>${escapeHtml(String(value.text ?? ""))}</div></details>`;
+      return `<details id="${id}" class="block reasoning"><summary>Thinking <span class="token-count" title="Estimated token count">${formatTokenCount(estimateTokens(String(value.text ?? "")))}</span></summary><div>${escapeHtml(String(value.text ?? ""))}</div></details>`;
     case "tool":
       return renderTool(value as never, entryIndex, blockIndex);
     case "error":
@@ -300,6 +306,11 @@ function insertAtCursor(text: string): void {
   input.setSelectionRange(caret, caret);
 }
 
+/** Chat font size (transcript + composer) is a user setting; apply it live. */
+function applyFontSize(fontSize: number): void {
+  document.documentElement.style.setProperty("--zcode-font-size", `${fontSize}px`);
+}
+
 /** Grow the composer with its content, up to a comfortable cap. */
 function autoGrow(input: HTMLTextAreaElement): void {
   input.style.height = "auto";
@@ -323,6 +334,11 @@ function updateStreamingBlocks(state: Store["state"]): void {
         if (target.innerHTML !== html) {
           target.innerHTML = html;
           scrollToBottom();
+        }
+        if (block.kind === "reasoning") {
+          const count = node.querySelector<HTMLElement>(".token-count");
+          const wanted = formatTokenCount(estimateTokens(block.text));
+          if (count && count.textContent !== wanted) count.textContent = wanted;
         }
       } else if (block.kind === "tool") {
         const summary = node.querySelector("summary");

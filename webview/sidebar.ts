@@ -25,9 +25,15 @@ interface SidebarState {
   query: string;
   sessions: SessionRow[];
   renamingId?: string;
+  settingsOpen: boolean;
+  fontSize: number;
 }
 
-const state: SidebarState = { loaded: false, query: "", sessions: [] };
+const defaultFontSize = 13;
+const minFontSize = 10;
+const maxFontSize = 24;
+
+const state: SidebarState = { loaded: false, query: "", sessions: [], settingsOpen: false, fontSize: defaultFontSize };
 
 const root = document.getElementById("root")!;
 
@@ -41,6 +47,16 @@ window.addEventListener("message", (event) => {
     case "renaming":
       state.renamingId = typeof message.sessionId === "string" ? message.sessionId : undefined;
       break;
+    case "toggleSettings":
+      state.settingsOpen = !state.settingsOpen;
+      break;
+    case "uiSettings": {
+      const size = Number(message.fontSize);
+      if (Number.isFinite(size) && size >= minFontSize && size <= maxFontSize) {
+        state.fontSize = size;
+      }
+      break;
+    }
     default:
       return;
   }
@@ -76,6 +92,7 @@ function render(): void {
 function view(): string {
   const rows = filtered();
   return `
+    ${state.settingsOpen ? settingsPanel() : ""}
     <button id="new-session" title="Start a new session">
       <span class="plus">+</span> New session
     </button>
@@ -88,6 +105,23 @@ function view(): string {
       ${rows.length === 0 ? `<div class="empty">${state.loaded ? "No sessions yet." : "Loading…"}</div>` : rows.map(rowHtml).join("")}
     </div>
     ${state.renamingId ? renameOverlay() : ""}
+  `;
+}
+
+/** Expandable settings card: the home for user-adjustable UI settings. */
+function settingsPanel(): string {
+  return `
+    <div class="settings">
+      <div class="settings-title">Settings</div>
+      <div class="setting-row">
+        <span class="setting-label">Font size <span class="setting-hint">(chat &amp; input)</span></span>
+        <div class="stepper">
+          <button data-font="dec" title="Smaller font" ${state.fontSize <= minFontSize ? "disabled" : ""}>−</button>
+          <span class="stepper-value">${state.fontSize}px</span>
+          <button data-font="inc" title="Larger font" ${state.fontSize >= maxFontSize ? "disabled" : ""}>+</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -127,6 +161,31 @@ function renameOverlay(): string {
 }
 
 function bind(): void {
+  // Clicking outside the settings card closes it (the gear lives in the native
+  // view title bar now, so dismissal happens on the webview side).
+  root.addEventListener("click", (event) => {
+    if (!state.settingsOpen) return;
+    if ((event.target as HTMLElement).closest(".settings")) return;
+    state.settingsOpen = false;
+    render();
+  });
+
+  for (const button of root.querySelectorAll<HTMLButtonElement>("[data-font]")) {
+    button.addEventListener("click", () => {
+      const step = button.dataset.font === "inc" ? 1 : -1;
+      const next = Math.min(maxFontSize, Math.max(minFontSize, state.fontSize + step));
+      if (next === state.fontSize) return;
+      state.fontSize = next;
+      vscode.postMessage({ t: "setFontSize", fontSize: next });
+      const value = root.querySelector(".stepper-value");
+      if (value) value.textContent = `${next}px`;
+      for (const other of root.querySelectorAll<HTMLButtonElement>("[data-font]")) {
+        other.disabled = (other.dataset.font === "inc" && next >= maxFontSize)
+          || (other.dataset.font === "dec" && next <= minFontSize);
+      }
+    });
+  }
+
   document.getElementById("new-session")?.addEventListener("click", () => {
     vscode.postMessage({ t: "newSession" });
   });

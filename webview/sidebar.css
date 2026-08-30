@@ -15,6 +15,55 @@ body {
 
 #root { display: flex; flex-direction: column; gap: 10px; }
 
+/* ---- Settings panel (font size and future user settings) ---- */
+
+.settings {
+  border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--vscode-editorWidget-background, transparent);
+}
+
+.settings-title {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.setting-hint { color: var(--vscode-descriptionForeground); font-size: 11px; }
+
+.stepper { display: flex; align-items: center; gap: 6px; }
+
+.stepper button {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 5px;
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #fff);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stepper button:hover:not(:disabled) { border-color: var(--vscode-focusBorder, #0078d4); }
+
+.stepper button:disabled { opacity: 0.4; cursor: default; }
+
+.stepper-value {
+  min-width: 34px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 #new-session {
   display: flex;
   align-items: center;

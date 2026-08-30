@@ -88,10 +88,20 @@ export class SidebarView {
     else this.running.delete(sessionId);
   }
 
+  /** Flip the in-webview settings card open/closed (driven by the view-title gear). */
+  toggleSettings(): void {
+    this.view?.webview.postMessage({ t: "toggleSettings" });
+  }
+
   private async onMessage(message: SidebarMessage): Promise<void> {
     switch (message.t) {
       case "ready":
+        this.view?.webview.postMessage({ t: "uiSettings", fontSize: this.controller.uiSettings.fontSize });
         await this.refresh();
+        break;
+      case "setFontSize":
+        this.controller.setFontSize(Number(message.fontSize));
+        this.view?.webview.postMessage({ t: "uiSettings", fontSize: this.controller.uiSettings.fontSize });
         break;
       case "newSession":
         await vscode.commands.executeCommand("zcode.newSession");

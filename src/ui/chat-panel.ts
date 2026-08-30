@@ -1,7 +1,9 @@
 /**
- * Chat tab: editor-area WebviewPanel hosting one session's conversation —
- * mirrors the Claude Code extension layout (sidebar lists sessions, the chat
- * itself opens as an editor tab next to the code).
+ * Chat tabs: editor-area WebviewPanels, one per session — mirrors the Claude
+ * Code extension layout (sidebar lists sessions, each conversation opens as
+ * its own editor tab next to the code). "New Session" always spawns a fresh
+ * tab no matter how many are open; events and permission prompts are routed
+ * to the tab bound to their sessionId.
  */
 
 import * as vscode from "vscode";
@@ -13,60 +15,119 @@ interface WebviewToHost {
   [key: string]: unknown;
 }
 
+/** One open chat tab and the session it displays. */
+interface ChatEntry {
+  panel: vscode.WebviewPanel;
+  sessionId: string | undefined;
+}
+
 const viewColumn = vscode.ViewColumn.Active;
 
 export class ChatTab {
-  private panel: vscode.WebviewPanel | undefined;
-  private sessionId: string | undefined;
+  private readonly entries = new Set<ChatEntry>();
 
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly controller: ZcodeController
-  ) {}
-
-  get activeSessionId(): string | undefined {
-    return this.sessionId;
+  ) {
+    this.controller.onPanelMessage((message) => this.dispatch(message));
   }
 
-  /** Open (or reuse) the chat tab and point it at a session. */
-  async open(sessionId?: string): Promise<void> {
-    if (!this.panel) {
-      this.panel = vscode.window.createWebviewPanel(
-        "zcode.chatPanel",
-        sessionId ? "ZCode" : "ZCode — New Session",
-        { viewColumn, preserveFocus: true },
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, "out")]
-        }
-      );
-      this.panel.webview.html = this.html(this.panel.webview);
-      this.panel.webview.onDidReceiveMessage((message: WebviewToHost) => void this.onMessage(message));
-      this.panel.onDidDispose(() => {
-        this.panel = undefined;
-        this.sessionId = undefined;
-      });
-      this.controller.onPanelMessage((message) => this.post(message));
-    } else {
-      this.panel.reveal();
-    }
+  /** Always open a NEW chat tab ("New Session" behavior). */
+  async openNew(sessionId?: string): Promise<void> {
+    this.spawn(sessionId);
+    this.controller.notifyPanelVisibility(true);
+  }
 
-    if (sessionId && sessionId !== this.sessionId) {
-      this.sessionId = sessionId;
-      this.panel.title = "ZCode";
-      await this.sendBootstrap();
+  /** Focus the tab bound to the session; open a new tab when none is. */
+  async open(sessionId?: string): Promise<void> {
+    const existing = this.entryFor(sessionId);
+    if (existing) {
+      existing.panel.reveal();
+    } else {
+      this.spawn(sessionId);
     }
     this.controller.notifyPanelVisibility(true);
   }
 
-  /** Push a fresh snapshot of the active session into the webview. */
+  /** Push a fresh snapshot of the active session into the tab bound to it. */
   async sendBootstrap(): Promise<void> {
-    const sessionId = this.sessionId;
+    const entry = this.entryFor(this.controller.activeSession);
+    if (entry) await this.sendBootstrapTo(entry);
+  }
+
+  visible(): boolean {
+    return this.entries.size > 0;
+  }
+
+  private spawn(sessionId?: string): ChatEntry {
+    const panel = vscode.window.createWebviewPanel(
+      "zcode.chatPanel",
+      sessionId ? "ZCode" : "ZCode — New Session",
+      { viewColumn, preserveFocus: true },
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, "out")]
+      }
+    );
+    const entry: ChatEntry = { panel, sessionId };
+    this.entries.add(entry);
+    panel.webview.html = this.html(panel.webview);
+    panel.webview.onDidReceiveMessage((message: WebviewToHost) => void this.onMessage(entry, message));
+    panel.onDidDispose(() => {
+      this.entries.delete(entry);
+      this.controller.notifyPanelVisibility(this.visible());
+    });
+    // The focused tab decides what "the active session" is for palette
+    // commands (setModel etc.) and the status bar.
+    panel.onDidChangeViewState(() => {
+      if (panel.active && entry.sessionId) this.controller.setActiveSession(entry.sessionId);
+    });
+    if (sessionId) void this.sendBootstrapTo(entry);
+    return entry;
+  }
+
+  private entryFor(sessionId: string | undefined): ChatEntry | undefined {
+    if (!sessionId) return undefined;
+    for (const entry of this.entries) {
+      if (entry.sessionId === sessionId) return entry;
+    }
+    return undefined;
+  }
+
+  /** Route controller broadcasts to the tabs that should see them. */
+  private dispatch(message: PanelMessage): void {
+    if (message.t === "event") {
+      this.postTo(this.entryFor(message.sessionId), message);
+      return;
+    }
+    if (message.t === "permission") {
+      const entry = this.entryFor(message.request.sessionId);
+      if (entry) {
+        this.postTo(entry, message);
+        return;
+      }
+      // No tab bound to that session (tab closed mid-request): broadcast so
+      // the prompt still surfaces somewhere instead of dangling unanswered.
+      for (const candidate of [...this.entries]) this.postTo(candidate, message);
+      return;
+    }
+    // userInput carries no sessionId in the protocol; runtimeExit and notice
+    // are global — broadcast to every open tab.
+    for (const entry of [...this.entries]) this.postTo(entry, message);
+  }
+
+  private postTo(entry: ChatEntry | undefined, message: PanelMessage): void {
+    void entry?.panel.webview.postMessage(message);
+  }
+
+  private async sendBootstrapTo(entry: ChatEntry): Promise<void> {
+    const sessionId = entry.sessionId;
     const manager = this.controller.sessionManager;
     if (!sessionId || !manager) return;
     const messages = await manager.readMessages(sessionId).catch(() => undefined);
-    this.post({
+    entry.panel.webview.postMessage({
       t: "bootstrap",
       sessionId,
       snapshot: { messages, settings: manager.settings(sessionId) },
@@ -74,37 +135,28 @@ export class ChatTab {
     });
   }
 
-  post(message: PanelMessage): void {
-    void this.panel?.webview.postMessage(message);
-  }
-
-  visible(): boolean {
-    return this.panel !== undefined;
-  }
-
-  private async onMessage(message: WebviewToHost): Promise<void> {
+  private async onMessage(entry: ChatEntry, message: WebviewToHost): Promise<void> {
     const manager = this.controller.sessionManager;
-    const sessionId = this.sessionId;
+    const sessionId = entry.sessionId;
     try {
       switch (message.t) {
         case "ready":
+          this.postTo(entry, { t: "uiSettings", fontSize: this.controller.uiSettings.fontSize });
           await this.controller.ensureRuntime();
-          if (!this.sessionId) {
+          if (!entry.sessionId) {
             // First open without a session: create one right away (CC-like).
             const id = await this.controller.newSession();
             if (id) {
-              this.sessionId = id;
-              this.panel!.title = "ZCode";
-              await this.sendBootstrap();
+              entry.sessionId = id;
+              entry.panel.title = "ZCode";
+              await this.sendBootstrapTo(entry);
             }
           }
           break;
         case "newSession": {
+          // A new session always means a fresh tab, regardless of open tabs.
           const id = await this.controller.newSession();
-          if (id) {
-            this.sessionId = id;
-            await this.sendBootstrap();
-          }
+          if (id) await this.openNew(id);
           break;
         }
         case "attach": {
@@ -121,7 +173,7 @@ export class ChatTab {
               .slice(0, 300),
             { placeHolder: "Reference a file (inserts @path)" }
           );
-          if (picked) this.post({ t: "insert", text: `@${picked.label}` });
+          if (picked) this.postTo(entry, { t: "insert", text: `@${picked.label}` });
           break;
         }
         case "send":
@@ -145,7 +197,7 @@ export class ChatTab {
           const model = message.model as { providerId: string; modelId: string } | undefined;
           if (manager && sessionId && model) {
             await manager.setModel(sessionId, model);
-            await this.sendBootstrap();
+            await this.sendBootstrapTo(entry);
           } else {
             // No payload: open the palette-driven picker instead of calling
             // setModel with undefined (runtime rejects it with Invalid params).
@@ -155,17 +207,17 @@ export class ChatTab {
         }
         case "setMode":
           if (manager && sessionId) await manager.setMode(sessionId, String(message.mode));
-          await this.sendBootstrap();
+          await this.sendBootstrapTo(entry);
           break;
         case "setThoughtLevel":
           if (manager && sessionId) await manager.setThoughtLevel(sessionId, String(message.thoughtLevel));
-          await this.sendBootstrap();
+          await this.sendBootstrapTo(entry);
           break;
         default:
           break;
       }
     } catch (error) {
-      this.post({
+      this.postTo(entry, {
         t: "notice",
         level: "error",
         message: error instanceof Error ? error.message : String(error)

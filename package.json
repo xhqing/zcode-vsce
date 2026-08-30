@@ -96,9 +96,23 @@
         "command": "zcode.compact",
         "title": "Compact Context",
         "category": "ZCode"
+      },
+      {
+        "command": "zcode.openSettings",
+        "title": "Settings",
+        "icon": "$(gear)",
+        "category": "ZCode"
       }
     ],
-    "menus": {},
+    "menus": {
+      "view/title": [
+        {
+          "command": "zcode.openSettings",
+          "when": "view == zcode.sessions",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "ZCode",
       "properties": {

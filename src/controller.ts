@@ -27,7 +27,17 @@ export type PanelMessage =
   | { t: "userInput"; request: UserInputRequest }
   | { t: "runtimeExit"; message: string }
   | { t: "insert"; text: string }
+  | { t: "uiSettings"; fontSize: number }
   | { t: "notice"; level: "info" | "error"; message: string };
+
+export interface UiSettings {
+  /** Chat font size in px for transcript + composer, shared by all webviews. */
+  fontSize: number;
+}
+
+const defaultUiSettings: UiSettings = { fontSize: 13 };
+const minFontSize = 10;
+const maxFontSize = 24;
 
 export class ZcodeController implements vscode.Disposable {
   readonly host = new RuntimeHost();
@@ -42,7 +52,24 @@ export class ZcodeController implements vscode.Disposable {
   private pendingPermissionRequests = new Map<string, { rawId: unknown; request: PermissionRequest }>();
   private pendingUserInputRequests = new Map<string, { rawId: unknown; request: UserInputRequest }>();
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) {
+    this.uiSettings = {
+      ...defaultUiSettings,
+      ...(context.globalState.get<Partial<UiSettings>>("zcode.uiSettings") ?? {})
+    };
+  }
+
+  /** User-adjustable UI settings (font size), persisted across windows. */
+  readonly uiSettings: UiSettings;
+
+  /** Persist a new chat font size and broadcast it to every open webview. */
+  setFontSize(fontSize: number): void {
+    const clamped = Math.min(maxFontSize, Math.max(minFontSize, Math.round(fontSize)));
+    if (this.uiSettings.fontSize === clamped) return;
+    this.uiSettings.fontSize = clamped;
+    void this.context.globalState.update("zcode.uiSettings", this.uiSettings as unknown as Record<string, unknown>);
+    this.emit({ t: "uiSettings", fontSize: clamped });
+  }
 
   get sessionManager(): SessionManager | undefined {
     return this.sessions;

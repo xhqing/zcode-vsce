@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("zcode.newSession", async () => {
       const id = await controller.newSession();
       if (id) {
-        await chat.open(id);
+        await chat.openNew(id);
         await sidebar.refresh();
       }
     }),
@@ -114,6 +114,9 @@ export function activate(context: vscode.ExtensionContext): void {
       const manager = controller.sessionManager;
       const sessionId = controller.activeSession;
       if (manager && sessionId) await manager.compact(sessionId);
+    }),
+    vscode.commands.registerCommand("zcode.openSettings", () => {
+      sidebar.toggleSettings();
     }),
     controller.onStatus(() => {
       statusbar.update(controller.sessionManager, controller.activeSession);
