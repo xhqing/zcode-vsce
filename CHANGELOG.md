@@ -6,6 +6,9 @@
 
 ### 变更
 
+- **修复 Release v0.1.5 的 vsix 陈旧产物 + package 脚本加固**。为什么：用户发布重装后发现欢迎页吉祥物 Z 仍是橙色——排查确认 git 提交（bd26e22）与源码均正确，但 Release 上传的 vsix 是 14:49 打的旧包（当时 `out/` 里还是品牌橙 CSS），发布时未重新打包；本机安装副本即装自此旧包。深层原因：`npm run package` 只跑 `vsce package`、不先 build，打包的是 `out/` 里现存的陈旧内容，存在「源码已改、产物未跟」的结构性风险。改了什么：
+  - 重新 `npm run build` + 打包 0.1.5 vsix（校验包内 `out/webview/main.css` 的 mascot 已是 `--zcode-fg`），`gh release upload --clobber` 替换 Release v0.1.5 产物并回验下载内容正确；
+  - `package.json` 的 `package` 脚本改为 `npm run build && vsce package --allow-missing-repository`——打包前强制重新构建，杜绝再发陈旧 `out/`。
 - **欢迎页吉祥物 Z 改为黑色**。为什么：用户对照截图指出——聊天面板欢迎页中央的大写 Z（mascot）原为品牌橙色（`--zcode-brand`，浅橙 #d97757），要求换成黑色。改了什么：[webview/main.css](webview/main.css) 的 `.welcome-hero .mascot` 颜色从 `var(--zcode-brand)` 改为 `var(--zcode-fg)`（主题前景色：深色主题下近黑、浅色主题下纯黑，与顶部「ZCode」标题字色一致，随主题自适应而非写死 #000，避免深色主题下黑字融进黑背景）。
 
 ### 新增

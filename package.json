@@ -139,7 +139,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "package": "vsce package --allow-missing-repository",
+    "package": "npm run build && vsce package --allow-missing-repository",
     "sync:runtime": "bun scripts/sync-runtime.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
