@@ -5,7 +5,7 @@
 ![ZCode VSCE](./assets/logo.png)
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE.md)
-[![Version](https://img.shields.io/badge/Version-0.1.5-blue.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.1.6-blue.svg)](./CHANGELOG.md)
 [![Type](https://img.shields.io/badge/Type-VSCode_Extension-blue.svg)]()
 <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/xhqing/xhqing/main/traffic/badges/zcode-vsce.json" alt="Visits/day" />
 

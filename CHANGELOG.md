@@ -2,6 +2,12 @@
 
 本项目所有值得注意的变更都记录在此文件中。每条记录写清楚两件事：**为什么改**（触发原因 / 要解决的问题）和**改了什么**（具体变更内容）。
 
+## 0.1.6 - 2026-08-30
+
+### 变更
+
+- **package 脚本加固：打包前强制重新构建**。为什么：Release v0.1.5 曾把陈旧 `out/` 产物打进 vsix（`npm run package` 只跑 `vsce package`、不先 build；该次事故的排查过程与 Release 产物替换记录见 0.1.5 条目）。改了什么：`package.json` 的 `package` 脚本改为 `npm run build && vsce package --allow-missing-repository`——打包前强制重新构建，从脚本层面杜绝「源码已改、产物未跟」再次发生。
+
 ## 0.1.5 - 2026-08-30
 
 ### 变更

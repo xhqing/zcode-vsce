@@ -2,7 +2,7 @@
   "name": "zcode-vsce",
   "displayName": "ZCode",
   "description": "Unofficial VSCode extension client for the ZCode agent runtime (Claude-Code-style chat UI over the official app-server protocol)",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "xhqing",
   "license": "MIT",
   "author": "All Contributors",
