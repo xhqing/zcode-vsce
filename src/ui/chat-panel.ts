@@ -197,8 +197,8 @@ export class ChatTab {
           const model = message.model as { providerId: string; modelId: string } | undefined;
           if (manager && sessionId && model) {
             await manager.setModel(sessionId, model);
-            await this.sendBootstrapTo(entry);
-          } else {
+            this.postTo(entry, { t: "settingsChanged", settings: manager.settings(sessionId) });
+          } else if (!model) {
             // No payload: open the palette-driven picker instead of calling
             // setModel with undefined (runtime rejects it with Invalid params).
             void vscode.commands.executeCommand("zcode.setModel");
@@ -209,10 +209,15 @@ export class ChatTab {
           if (manager && sessionId) await manager.setMode(sessionId, String(message.mode));
           await this.sendBootstrapTo(entry);
           break;
-        case "setThoughtLevel":
-          if (manager && sessionId) await manager.setThoughtLevel(sessionId, String(message.thoughtLevel));
-          await this.sendBootstrapTo(entry);
+        case "setThoughtLevel": {
+          if (manager && sessionId) {
+            await manager.setThoughtLevel(sessionId, String(message.thoughtLevel));
+            // Settings (not messages) changed: push just the settings so the
+            // composer chips update without touching the transcript.
+            this.postTo(entry, { t: "settingsChanged", settings: manager.settings(sessionId) });
+          }
           break;
+        }
         default:
           break;
       }

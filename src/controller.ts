@@ -27,6 +27,7 @@ export type PanelMessage =
   | { t: "userInput"; request: UserInputRequest }
   | { t: "runtimeExit"; message: string }
   | { t: "insert"; text: string }
+  | { t: "settingsChanged"; settings?: unknown }
   | { t: "uiSettings"; fontSize: number }
   | { t: "notice"; level: "info" | "error"; message: string };
 

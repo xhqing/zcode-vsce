@@ -4,6 +4,13 @@
 
 ## 0.1.6 - 2026-08-30
 
+### 新增
+
+- **composer 输入框下方模型选择器与思考等级选择器**。为什么：用户要求输入框下面要有能选择模型和调节思考等级的功能；0.1.4 声称落地的「模型 / 模式 chip」经 git 历史核实从未真正进入代码（commit 3983521 的 diff 里 composer 只有 `+` `/` 和发送按钮），此前切模型 / 思考档只能走命令面板 QuickPick，交互成本高。改了什么：
+  - **webview 侧**（[webview/main.ts](webview/main.ts) + [webview/store.ts](webview/store.ts) + [webview/main.css](webview/main.css)）：composer 底栏右侧新增两个 chip——当前模型短名（modelId 末段，如 `glm-4.7` → `4.7`）与思考档标签（`settings.thoughtLevel.available` 里的 label，低频模型无思考能力时 `enabled: false` 自动隐藏）；点击 chip 在输入框与工具条之间展开内嵌下拉（模型项显示 label + provider · 上下文窗口，当前项高亮带 ✓；思考档项显示 label），点选即切换、再点 chip 或点击外部区域收起。store 新增 `modelRef` / `modelOptions` / `thoughtEnabled` / `thoughtLevel` / `thoughtOptions` 状态；渲染签名纳入 picker 开合与档位变化；结构重建时保留输入框草稿（文字 + 光标位置，`restoreDraft`），picker 开合不清空已输入内容。
+  - **消息链路**（[src/controller.ts](src/controller.ts) + [src/ui/chat-panel.ts](src/ui/chat-panel.ts)）：新增 `settingsChanged` PanelMessage——`setModel` / `setThoughtLevel` 完成后宿主只回推新 settings（不再走完整 bootstrap），webview 据此刷新 chip 与下拉，不触碰会话记录；模型数据源为会话 settings 快照里的 `model.available` + `thoughtLevel.available`（bootstrap 时一并下发，无需额外请求）。
+  - 切换走既有协议封装 `session/setModel` / `session/setThoughtLevel`（`persistAsWorkspaceLastUsed: false`，仅当前会话生效），命令面板 QuickPick 入口保留不变。
+
 ### 变更
 
 - **package 脚本加固：打包前强制重新构建**。为什么：Release v0.1.5 曾把陈旧 `out/` 产物打进 vsix（`npm run package` 只跑 `vsce package`、不先 build；该次事故的排查过程与 Release 产物替换记录见 0.1.5 条目）。改了什么：`package.json` 的 `package` 脚本改为 `npm run build && vsce package --allow-missing-repository`——打包前强制重新构建，从脚本层面杜绝「源码已改、产物未跟」再次发生。

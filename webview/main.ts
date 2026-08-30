@@ -5,7 +5,7 @@
  * streaming flushes).
  */
 
-import { Store } from "./store.ts";
+import { Store, type ModelOptionView, type ThoughtLevelOptionView } from "./store.ts";
 import { renderMarkdown } from "./markdown.ts";
 import { estimateTokens, formatTokenCount } from "./tokens.ts";
 
@@ -19,6 +19,12 @@ interface VscodeApi {
 
 const store = new Store();
 const root = document.getElementById("root")!;
+
+/** Which composer dropdown is open (model / thinking), if any. */
+type PickerKind = "model" | "thought";
+let openPicker: PickerKind | undefined;
+/** Guard so the outside-click closer is registered exactly once. */
+let outsideClickBound = false;
 
 store.subscribe(render);
 
@@ -36,15 +42,19 @@ window.addEventListener("message", (event) => {
       // bootstrap (post setModel etc.) would wipe streaming deltas mid-turn.
       if (incomingSessionId !== store.state.sessionId) {
         store.reset(incomingSessionId);
+        openPicker = undefined;
       }
-      const snapshot = message.snapshot as { messages?: unknown; settings?: { model?: { current?: { modelId?: string } }; mode?: { current?: string } }; projection?: { contextUsed?: number; contextWindow?: number } } | undefined;
+      const snapshot = message.snapshot as {
+        messages?: unknown;
+        settings?: SettingsSnapshot;
+        projection?: { contextUsed?: number; contextWindow?: number };
+      } | undefined;
       if (snapshot?.messages && !store.state.running) {
         store.loadMessages(snapshot.messages);
       }
       if (snapshot?.settings) {
+        applySettingsToStore(snapshot.settings);
         store.updateHeader({
-          model: snapshot.settings.model?.current?.modelId,
-          mode: snapshot.settings.mode?.current,
           contextUsed: snapshot.projection?.contextUsed,
           contextSize: snapshot.projection?.contextWindow
         });
@@ -70,6 +80,11 @@ window.addEventListener("message", (event) => {
       break;
     case "insert":
       if (typeof message.text === "string") insertAtCursor(message.text);
+      break;
+    case "settingsChanged":
+      if (message.settings && typeof message.settings === "object") {
+        applySettingsToStore(message.settings as SettingsSnapshot);
+      }
       break;
     case "uiSettings": {
       const fontSize = Number(message.fontSize);
@@ -107,8 +122,13 @@ function render(): void {
     ].join("|");
     if (signature !== structureSignature) {
       structureSignature = signature;
+      // Preserve the composer draft (text + caret) across structural rebuilds
+      // — e.g. opening a picker must not wipe what the user has typed.
+      const previous = document.getElementById("composer-input") as HTMLTextAreaElement | null;
+      const draft = previous ? { value: previous.value, start: previous.selectionStart, end: previous.selectionEnd } : undefined;
       root.innerHTML = view(state);
       bindEvents();
+      restoreDraft(draft);
       scrollToBottom();
     } else {
       updateStreamingBlocks(state);
@@ -117,7 +137,8 @@ function render(): void {
 }
 
 function headerSignature(state: Store["state"]): string {
-  return `${state.model ?? ""}|${state.mode ?? ""}|${state.running}`;
+  return `${state.model ?? ""}|${state.mode ?? ""}|${state.running}|${openPicker ?? ""}`
+    + `|${state.thoughtEnabled ? state.thoughtLevel ?? "" : ""}`;
 }
 
 function view(state: Store["state"]): string {
@@ -129,18 +150,71 @@ function view(state: Store["state"]): string {
     ${renderUserInput(state)}
     <div class="composer">
       <textarea id="composer-input" placeholder="Ask ZCode anything... (⏎ to send, / for commands)" rows="1"></textarea>
+      ${renderPickers(state)}
       <div class="composer-bar">
         <div class="composer-left">
           <button class="bar-btn" data-action="attach" title="Attach file">+</button>
           <button class="bar-btn" data-action="commands" title="Slash commands">/</button>
         </div>
         <div class="composer-right">
+          <button class="bar-btn picker-toggle ${openPicker === "model" ? "active" : ""}" data-action="model"
+                  title="Switch model">${escapeHtml(modelShortName(state))} ▾</button>
+          ${state.thoughtEnabled
+            ? `<button class="bar-btn picker-toggle ${openPicker === "thought" ? "active" : ""}" data-action="thought"
+                  title="Switch thinking level">${escapeHtml(thoughtShortLabel(state))} ▾</button>`
+            : ""}
           <button id="composer-send" class="send ${state.running ? "stop" : ""}" data-action="send"
                   title="${state.running ? "Stop" : "Send"}">${state.running ? "■" : "↑"}</button>
         </div>
       </div>
     </div>
   `;
+}
+
+/** Model / thinking dropdowns sit between the textarea and the bar (CC-like). */
+function renderPickers(state: Store["state"]): string {
+  if (openPicker === "model") {
+    const items = state.modelOptions.map((option) => {
+      const current = state.modelRef?.providerId === option.ref.providerId
+        && state.modelRef?.modelId === option.ref.modelId;
+      return `
+        <button class="picker-item ${current ? "current" : ""}" data-model-pick="${escapeHtml(option.ref.providerId)}|${escapeHtml(option.ref.modelId)}">
+          <span class="picker-item-label">${escapeHtml(option.label)}</span>
+          <span class="picker-item-detail">${escapeHtml(option.providerLabel)} · ${(option.contextWindow / 1000).toFixed(0)}k</span>
+          ${current ? '<span class="picker-item-check">✓</span>' : ""}
+        </button>`;
+    }).join("");
+    return `<div class="picker open" id="picker-model">${items || '<div class="picker-empty">No models available</div>'}</div>`;
+  }
+  if (openPicker === "thought") {
+    const items = state.thoughtOptions.map((option) => {
+      const current = state.thoughtLevel === option.value;
+      return `
+        <button class="picker-item ${current ? "current" : ""}" data-thought-pick="${escapeHtml(option.value)}">
+          <span class="picker-item-label">${escapeHtml(option.label)}</span>
+          ${current ? '<span class="picker-item-check">✓</span>' : ""}
+        </button>`;
+    }).join("");
+    return `<div class="picker open" id="picker-thought">${items || '<div class="picker-empty">No levels available</div>'}</div>`;
+  }
+  return "";
+}
+
+/** Short composer label for the current model (e.g. "glm-4.7" → "4.7"). */
+function modelShortName(state: Store["state"]): string {
+  const modelId = state.modelRef?.modelId ?? state.model;
+  if (!modelId) return "Model";
+  const segments = modelId.split(/[/.]/);
+  const last = segments[segments.length - 1] ?? modelId;
+  return last.length <= 12 ? last : modelId.slice(0, 12);
+}
+
+/** Short composer label for the current thinking level. */
+function thoughtShortLabel(state: Store["state"]): string {
+  const value = state.thoughtLevel;
+  const match = state.thoughtOptions.find((option) => option.value === value);
+  if (match) return match.label;
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "Thinking";
 }
 
 function welcomeView(): string {
@@ -240,12 +314,46 @@ function bindEvents(): void {
       const action = button.dataset.action;
       if (action === "attach") insertAtCursor("/");
       if (action === "commands") insertAtCursor("/");
+      if (action === "model" || action === "thought") {
+        openPicker = openPicker === action ? undefined : action;
+        render();
+      }
       if (action === "send") {
         if (store.state.running) vscode?.postMessage({ t: "stop" });
         else submitComposer();
       }
     });
   });
+  document.querySelectorAll<HTMLButtonElement>("[data-model-pick]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const [providerId, modelId] = String(button.dataset.modelPick ?? "").split("|");
+      if (providerId && modelId) {
+        vscode?.postMessage({ t: "setModel", model: { providerId, modelId } });
+      }
+      openPicker = undefined;
+      render();
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-thought-pick]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const value = String(button.dataset.thoughtPick ?? "");
+      if (value) vscode?.postMessage({ t: "setThoughtLevel", thoughtLevel: value });
+      openPicker = undefined;
+      render();
+    });
+  });
+  // Close an open dropdown when clicking anywhere outside it. Registered once
+  // on a stable node (document) — bindEvents runs on every structural rebuild.
+  if (!outsideClickBound) {
+    outsideClickBound = true;
+    document.addEventListener("click", (event) => {
+      if (!openPicker) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".picker") || target?.closest("[data-action='model']") || target?.closest("[data-action='thought']")) return;
+      openPicker = undefined;
+      render();
+    });
+  }
   document.querySelectorAll<HTMLButtonElement>("[data-permission]").forEach((button) => {
     button.addEventListener("click", () => {
       vscode?.postMessage({ t: "permission", requestId: store.state.permission?.requestId, optionId: button.dataset.permission });
@@ -295,8 +403,7 @@ function submitComposer(): void {
 }
 
 /** Insert text at the composer cursor and refocus it (slash-command helper). */
-function insertAtCursor(text: string): void {
-  const input = document.getElementById("composer-input") as HTMLTextAreaElement | null;
+function insertAtCursor(text: string): void {  const input = document.getElementById("composer-input") as HTMLTextAreaElement | null;
   if (!input) return;
   input.focus();
   const start = input.selectionStart ?? input.value.length;
@@ -311,10 +418,66 @@ function applyFontSize(fontSize: number): void {
   document.documentElement.style.setProperty("--zcode-font-size", `${fontSize}px`);
 }
 
+/** Shape of the session settings snapshot pushed by the host (subset we use). */
+interface SettingsSnapshot {
+  model?: {
+    current?: { providerId?: string; modelId?: string };
+    available?: Array<{ ref?: { providerId?: string; modelId?: string }; label?: string; providerLabel?: string; contextWindow?: number }>;
+  };
+  thoughtLevel?: {
+    enabled?: boolean;
+    current?: string;
+    available?: Array<{ value?: string; label?: string }>;
+  };
+  mode?: { current?: string };
+}
+
+/** Project a settings snapshot into the composer picker state. */
+function applySettingsToStore(settings: SettingsSnapshot): void {
+  const current = settings.model?.current;
+  const available = (settings.model?.available ?? []).filter(
+    (option): option is { ref: { providerId: string; modelId: string }; label: string; providerLabel: string; contextWindow: number } =>
+      typeof option.ref?.providerId === "string" && typeof option.ref?.modelId === "string"
+  ).map((option) => ({
+    ref: { providerId: option.ref.providerId!, modelId: option.ref.modelId! },
+    label: option.label ?? option.ref.modelId!,
+    providerLabel: option.providerLabel ?? option.ref.providerId!,
+    contextWindow: typeof option.contextWindow === "number" ? option.contextWindow : 0
+  }));
+  const thoughtAvailable = (settings.thoughtLevel?.available ?? []).filter(
+    (option): option is { value: string; label: string } =>
+      typeof option.value === "string"
+  ).map((option) => ({
+    value: option.value,
+    label: option.label ?? option.value
+  }));
+  store.updateHeader({
+    model: current?.modelId,
+    mode: settings.mode?.current,
+    modelRef: current && typeof current.providerId === "string" && typeof current.modelId === "string"
+      ? { providerId: current.providerId, modelId: current.modelId }
+      : undefined,
+    modelOptions: available as ModelOptionView[],
+    thoughtEnabled: settings.thoughtLevel?.enabled === true,
+    thoughtLevel: settings.thoughtLevel?.current,
+    thoughtOptions: thoughtAvailable as ThoughtLevelOptionView[]
+  });
+}
+
 /** Grow the composer with its content, up to a comfortable cap. */
 function autoGrow(input: HTMLTextAreaElement): void {
   input.style.height = "auto";
   input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
+}
+
+/** Restore composer text + selection captured just before a rebuild. */
+function restoreDraft(draft: { value: string; start: number | null; end: number | null } | undefined): void {
+  if (!draft) return;
+  const input = document.getElementById("composer-input") as HTMLTextAreaElement | null;
+  if (!input) return;
+  input.value = draft.value;
+  input.setSelectionRange(draft.start ?? draft.value.length, draft.end ?? draft.value.length);
+  autoGrow(input);
 }
 
 function updateStreamingBlocks(state: Store["state"]): void {

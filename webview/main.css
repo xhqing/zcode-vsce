@@ -241,6 +241,56 @@ details.tool summary { cursor: pointer; user-select: none; display: flex; align-
   cursor: pointer;
 }
 
+/* ---- Composer model / thinking pickers ---- */
+
+.picker-toggle {
+  font-size: 12px;
+  padding: 3px 8px;
+  color: var(--zcode-fg);
+}
+
+.picker-toggle.active { background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2)); }
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 8px 6px;
+  padding: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--zcode-border);
+  border-radius: 8px;
+  background: var(--vscode-editorWidget-background, var(--zcode-input-bg));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  font-size: calc(var(--zcode-font-size, 13px) - 1px);
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: var(--zcode-fg);
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.picker-item:hover { background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2)); }
+
+.picker-item.current { background: var(--vscode-list-activeSelectionBackground, rgba(0, 120, 212, 0.25)); }
+
+.picker-item-label { flex: none; font-weight: 500; }
+
+.picker-item-detail { flex: 1; color: var(--zcode-muted); font-size: 11px; }
+
+.picker-item-check { color: var(--vscode-charts-green, #4ec94e); }
+
+.picker-empty { color: var(--zcode-muted); padding: 6px 8px; }
+
 .bar-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2)); color: var(--zcode-fg); }
 
 #composer-send {

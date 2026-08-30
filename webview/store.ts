@@ -55,6 +55,20 @@ export interface UserInputPrompt {
   choices?: string[];
 }
 
+/** One entry of settings.model.available (composer model picker). */
+export interface ModelOptionView {
+  ref: { providerId: string; modelId: string };
+  label: string;
+  providerLabel: string;
+  contextWindow: number;
+}
+
+/** One entry of settings.thoughtLevel.available (composer thinking picker). */
+export interface ThoughtLevelOptionView {
+  value: string;
+  label: string;
+}
+
 export interface StoreState {
   sessionId?: string;
   running: boolean;
@@ -63,6 +77,11 @@ export interface StoreState {
   userInput?: UserInputPrompt;
   model?: string;
   mode?: string;
+  modelRef?: { providerId: string; modelId: string };
+  modelOptions: ModelOptionView[];
+  thoughtEnabled: boolean;
+  thoughtLevel?: string;
+  thoughtOptions: ThoughtLevelOptionView[];
   contextUsed?: number;
   contextSize?: number;
   lastResponseTokens?: number;
@@ -105,7 +124,7 @@ interface RawPart {
 const maxTranscriptEntries = 500;
 
 export class Store {
-  state: StoreState = { running: false, transcript: [] };
+  state: StoreState = { running: false, transcript: [], modelOptions: [], thoughtEnabled: false, thoughtOptions: [] };
   private listeners = new Set<() => void>();
 
   subscribe(listener: () => void): () => void {
@@ -118,7 +137,7 @@ export class Store {
   }
 
   reset(sessionId: string | undefined): void {
-    this.state = { sessionId, running: false, transcript: [] };
+    this.state = { sessionId, running: false, transcript: [], modelOptions: [], thoughtEnabled: false, thoughtOptions: [] };
     this.emit();
   }
 
@@ -149,7 +168,10 @@ export class Store {
     }
   }
 
-  updateHeader(header: Partial<Pick<StoreState, "model" | "mode" | "contextUsed" | "contextSize" | "lastResponseTokens">>): void {
+  updateHeader(header: Partial<Pick<StoreState,
+    "model" | "mode" | "contextUsed" | "contextSize" | "lastResponseTokens"
+    | "modelRef" | "modelOptions" | "thoughtEnabled" | "thoughtLevel" | "thoughtOptions"
+  >>): void {
     Object.assign(this.state, header);
     this.emit();
   }
