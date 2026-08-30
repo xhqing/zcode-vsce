@@ -2,7 +2,7 @@
   "name": "zcode-vsce",
   "displayName": "ZCode",
   "description": "Unofficial VSCode extension client for the ZCode agent runtime (Claude-Code-style chat UI over the official app-server protocol)",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "xhqing",
   "license": "MIT",
   "author": "All Contributors",
@@ -58,7 +58,7 @@
       {
         "command": "zcode.newSession",
         "title": "New Session",
-        "icon": "$(add)",
+        "icon": "assets/title-icon.svg",
         "category": "ZCode"
       },
       {
@@ -105,6 +105,13 @@
       }
     ],
     "menus": {
+      "editor/title": [
+        {
+          "command": "zcode.newSession",
+          "when": "editorIsOpen",
+          "group": "navigation@9"
+        }
+      ],
       "view/title": [
         {
           "command": "zcode.openSettings",

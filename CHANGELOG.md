@@ -2,6 +2,26 @@
 
 本项目所有值得注意的变更都记录在此文件中。每条记录写清楚两件事：**为什么改**（触发原因 / 要解决的问题）和**改了什么**（具体变更内容）。
 
+## 0.1.5 - 2026-08-30
+
+### 变更
+
+- **欢迎页吉祥物 Z 改为黑色**。为什么：用户对照截图指出——聊天面板欢迎页中央的大写 Z（mascot）原为品牌橙色（`--zcode-brand`，浅橙 #d97757），要求换成黑色。改了什么：[webview/main.css](webview/main.css) 的 `.welcome-hero .mascot` 颜色从 `var(--zcode-brand)` 改为 `var(--zcode-fg)`（主题前景色：深色主题下近黑、浅色主题下纯黑，与顶部「ZCode」标题字色一致，随主题自适应而非写死 #000，避免深色主题下黑字融进黑背景）。
+
+### 新增
+
+- **编辑器标签栏右侧新增 Z 按钮（new session 入口）**。为什么：用户对照 Claude Code 扩展截图要求——CC 在编辑器标签栏右侧（editor actions 区、`...` 菜单左侧）有橙色星形按钮可一键开新会话，ZCode 扩展在同样位置也要有一个 Z 按钮，点击即 new session。改了什么：
+  - 新增 [assets/title-icon.svg](assets/title-icon.svg)：16×16 单笔大写 Z（`currentColor` 描边，随主题明暗自适应；与活动栏 [assets/sidebar-icon.svg](assets/sidebar-icon.svg) 同形态，笔画按 16px 尺寸减细到 1.6）。为什么用 SVG 文件而非 codicon：命令 `icon` 属性支持相对扩展根的 SVG 路径（官方文档推荐形态，16×16、单色、1px 内边距），而 codicon 集里没有 Z 形图标。
+  - `package.json`：`zcode.newSession` 命令的 `icon` 从 `$(add)` 换为该 SVG；新增 `menus.editor/title` 贡献点（`navigation@9` 组、`when: editorIsOpen`）——有图标的命令进 navigation 组即渲染为编辑器标签栏右侧的实体按钮（非 navigation 组只能进 `...` 折叠菜单）；`@9` 排序值把它放到该区域扩展按钮的末位、紧邻原生 split / `...` 按钮（CC 的星形按钮也在这个位置）。
+  - 点击行为复用既有 `zcode.newSession` 命令链路（[src/extension.ts](src/extension.ts)）：新建会话 → 编辑器区新开「ZCode」标签页 → 侧栏列表刷新，与侧栏「+ New session」按钮、命令面板完全一致，无新增逻辑分支。
+
+### 变更
+
+- **项目 logo 重设计为简约风大写 Z**。为什么：用户认为原 logo（赛博朋克风：深底网格 + 霓虹辉光 Z + 品红重影 + glitch 切片 + "ZCodeVSCE_" 文字）元素堆砌、不好看，要求换成简约风的大写字母 Z。改了什么：
+  - [assets/logo.svg](assets/logo.svg) 整体重写：从 640×200 赛博朋克横幅改为 512×512 简约方形图标——圆角方形（`rx=112`）深色对角渐变底（#0C1024 → #1C1238，延续原深色调）+ 居中青色垂直渐变（#67E8F9 → #22D3EE，延续原 zgrad 品牌色）粗笔画（`stroke-width=96`）圆头大写 Z；去掉全部装饰元素（网格、辉光、重影、glitch、文字），几何与 [assets/sidebar-icon.svg](assets/sidebar-icon.svg)（侧栏单色 Z，本就简约、未动）形态呼应。
+  - [assets/logo.png](assets/logo.png)（扩展图标 `package.json` `"icon"` + README 头图）从新 SVG 用 `rsvg-convert` 重新导出 256×256、保留圆角外透明（与旧 png 工艺一致）。渲染工具备注：`qlmanage` 渲染 SVG 会把透明区铺白且命中缩略图缓存（首次导出即因此作废重渲），不可用于本任务；`rsvg-convert` 渲染正确。
+  - 版本号同步 bump 至 0.1.5（0.1.4 已发布，本变更进新条目）：[VERSION](VERSION)、`package.json` `version`、README.md / README_cn.md 的 Version 徽章。
+
 ## 0.1.4 - 2026-08-27
 
 ### 新增

@@ -26,6 +26,7 @@ export function activate(context: vscode.ExtensionContext): void {
       await chat.open(controller.activeSession);
     }),
     vscode.commands.registerCommand("zcode.newSession", async () => {
+      // From the editor-title Z button (and palette): spawn a fresh chat tab.
       const id = await controller.newSession();
       if (id) {
         await chat.openNew(id);
