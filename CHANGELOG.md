@@ -2,7 +2,23 @@
 
 本项目所有值得注意的变更都记录在此文件中。每条记录写清楚两件事：**为什么改**（触发原因 / 要解决的问题）和**改了什么**（具体变更内容）。
 
+## [Unreleased]
+
+### 变更（同步 Atlas 子项目清单：加入 mp4-player）
+
+- **为什么改**：Atlas 权威源把 mp4-player 登记为新子项目，按超集规则 zcode-vsce 的随附版（`.claude/CLAUDE.md`）需同步最新全文。
+- **改了什么**（2026-10-09）：`.claude/CLAUDE.md` 底部随附的 FullStackEngineerAgent CLAUDE.md 全文更新——「目前在手项目」与「当前子项目清单」两处加入 mp4-player。
+
+### 变更（CLAUDE.md 删去「由 Claude Code 自动加载」说明句）
+
+- **为什么改**：用户 2026-09-12 要求 CLAUDE.md 不再强调本文由 Claude Code 加载，团队全部项目的 CLAUDE.md 统一清理此类语句。
+- **改了什么**（2026-09-12）：`.claude/CLAUDE.md` 开头角色定位行删去句尾「本文件由 Claude Code 在每次会话开头自动加载。」，角色描述本身保留。
+
 ## 0.1.6 - 2026-08-30
+
+### 变更（项目迁移收尾：CLAUDE.md 子项目清单路径更新）
+
+- **`.claude/CLAUDE.md` 子项目清单中 zcode-cli、zcode-vsce 的路径由 `~/Documents/Projects/` 更新为 `~/Developer/`**。为什么改：项目现址在 `~/Developer/`（`~/Documents/Projects/` 旧址已弃用，2026-09-08 迁移收尾时发现清单仍指旧路径），避免后续会话被引导到不存在的位置。
 
 ### 新增
 
