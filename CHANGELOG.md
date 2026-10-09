@@ -2,6 +2,13 @@
 
 本项目所有值得注意的变更都记录在此文件中。每条记录写清楚两件事：**为什么改**（触发原因 / 要解决的问题）和**改了什么**（具体变更内容）。
 
+## 0.1.8 - 2026-10-09
+
+### 变更（同步 Atlas 子项目清单：zcode-cli、cmux-launcher 短期搁置标注）
+
+- **为什么改**：用户 2026-10-09 决定 zcode-cli 与 cmux-launcher 短期不再维护，Atlas 权威源已作标注，按超集规则 zcode-vsce 的随附版需同步。
+- **改了什么**：`.claude/CLAUDE.md` 底部随附的 FullStackEngineerAgent CLAUDE.md 全文更新——「目前在手项目」与「当前子项目清单」两处标注「zcode-cli、cmux-launcher 自 2026-10-09 起短期搁置」。
+
 ## 0.1.7 - 2026-10-09
 
 ### 变更（同步 Atlas 子项目清单：加入 mp4-player）
